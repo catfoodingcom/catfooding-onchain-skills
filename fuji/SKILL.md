@@ -18,6 +18,9 @@ All steps go through one script in this folder. Run it from here (`npm install` 
 | get test dollars | `node cat.mjs mint 25` (max 1000) |
 | adopt a cat | `node cat.mjs adopt --coat=<coat>` |
 | look up a cat | `node cat.mjs cat <number>` |
+| check which cat the skills run as | `node cat.mjs check` (or `--cat=<number>`) |
+
+**The cat check.** Before any skill other than setup, mint, adopt and look-up, run `node cat.mjs check --json`. Continue only if it returns `ok: true`, and use its `cat` as the cat you're acting for. Exit code 3 means no Agent Cat (or not this wallet's cat): offer to adopt one, and do nothing else.
 
 Coats: White, Gold, Calico, Black, Red, Pink, Violet. Adoption costs 25 tUSD.
 

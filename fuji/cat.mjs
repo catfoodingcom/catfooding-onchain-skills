@@ -240,6 +240,32 @@ async function catInfo() {
   ], { ok: true, cat: Number(id), owner, coat: COATS[coat] ?? coat, litter, stage, image: meta?.image ?? null });
 }
 
+// ---- the Agent Cat gate: skills belong to a cat, so every skill past adoption runs this first ----
+const NO_CAT = 3; // exit code for "no cat": an agent can tell it apart from other stops
+
+/** The cat this wallet's skills run as: --cat=<n> if given (it must be the wallet's), else its first cat. */
+async function requireCat(who) {
+  const picked = opt("cat");
+  if (picked !== undefined) {
+    if (!/^\d+$/.test(picked)) fail(`--cat=${picked} isn't a cat number.`);
+    const owner = await pub.readContract({ address: CATS, abi: catsAbi, functionName: "ownerOf", args: [BigInt(picked)] }).catch(() => null);
+    if (!owner) fail(`there's no Agent Cat #${picked} on Fuji.`, NO_CAT);
+    if (getAddress(owner) !== who.address) fail(`Agent Cat #${picked} belongs to ${owner}, not this wallet (${who.address}).`, NO_CAT);
+    return Number(picked);
+  }
+  const count = await pub.readContract({ address: CATS, abi: catsAbi, functionName: "balanceOf", args: [who.address] });
+  const [first] = await catsOf(who.address, count);
+  if (!first) fail(`no Agent Cat in ${who.address}. Skills belong to an Agent Cat: adopt one first with "node cat.mjs adopt --coat=Calico".`, NO_CAT);
+  return first;
+}
+
+async function check() {
+  await checkNetwork();
+  const who = whoAmI();
+  const cat = await requireCat(who);
+  out([`Skills run as Agent Cat #${cat}, owned by ${who.address}.`], { ok: true, cat, address: who.address });
+}
+
 function report(steps, who, doneLines = [], extra = {}) {
   const sent = steps.every((s) => s.sent);
   const handoff = handOff(who, steps);
@@ -266,12 +292,13 @@ const HELP = `Catfooding on Avalanche Fuji
   node cat.mjs mint [amount]         mint test dollars (default 50, max 1000)
   node cat.mjs adopt --coat=<name>   adopt an Agent Cat (${COATS.join(", ")})
   node cat.mjs cat <number>          look up an Agent Cat
+  node cat.mjs check [--cat=<n>]     which Agent Cat this wallet's skills run as (exit 3 if none)
 
   Transactions are a dry run unless you add --send.
   --from=<address>   prepare transactions for another wallet to sign (no local key used)
   --json             machine-readable output`;
 
-const commands = { setup, status, mint, adopt, cat: catInfo };
+const commands = { setup, status, mint, adopt, cat: catInfo, check };
 if (!command || flags.has("--help") || !commands[command]) {
   console.log(HELP);
   process.exit(command && !commands[command] ? 1 : 0);
