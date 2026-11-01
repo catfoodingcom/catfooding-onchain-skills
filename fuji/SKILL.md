@@ -19,6 +19,7 @@ All steps go through one script in this folder. Run it from here (`npm install` 
 | adopt a cat | `node cat.mjs adopt --coat=<coat>` |
 | look up a cat | `node cat.mjs cat <number>` |
 | check which cat the skills run as | `node cat.mjs check` (or `--cat=<number>`) |
+| see tokenized stocks across chains | `node cat.mjs market` (or `--stock=SPCX`); needs a cat |
 
 **The cat check.** Before any skill other than setup, mint, adopt and look-up, run `node cat.mjs check --json`. Continue only if it returns `ok: true`, and use its `cat` as the cat you're acting for. Exit code 3 means no Agent Cat (or not this wallet's cat): offer to adopt one, and do nothing else.
 

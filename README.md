@@ -6,7 +6,7 @@ Agent skills for Catfooding Agent Cats. Load them into your own agent, connect a
 
 | Folder | Network | What it does |
 |---|---|---|
-| [`fuji/`](fuji/) | Avalanche Fuji (testnet) | set up a test wallet, mint test dollars, adopt an Agent Cat, check on it |
+| [`fuji/`](fuji/) | Avalanche Fuji (testnet) | set up a test wallet, mint test dollars, adopt an Agent Cat, check on it, read tokenized stocks across chains |
 
 Each folder is a standard skill: a `SKILL.md` plus a small script you can read before loading it. The kit works alongside OKX's Onchain OS skills. See [docs/connect-your-wallet.md](docs/connect-your-wallet.md).
 

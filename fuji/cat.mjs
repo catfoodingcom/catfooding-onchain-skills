@@ -266,6 +266,28 @@ async function check() {
   out([`Skills run as Agent Cat #${cat}, owned by ${who.address}.`], { ok: true, cat, address: who.address });
 }
 
+// ---- market data: tokenized stocks across chains (a skill, so it runs as the wallet's cat) ----
+async function market() {
+  await checkNetwork();
+  const who = whoAmI();
+  const cat = await requireCat(who);
+  const want = opt("stock")?.toUpperCase();
+  const data = await fetch(`${SITE}/api/market/stocks`, { signal: AbortSignal.timeout(15000) })
+    .then((r) => r.json())
+    .catch(() => fail("couldn't reach Catfooding's market data. Try again in a minute."));
+  if (!data?.ok) fail(data?.error ?? "market data isn't available right now.");
+  const stocks = want ? data.stocks.filter((s) => s.stock === want) : data.stocks;
+  if (want && !stocks.length) fail(`no data for ${want}. Stocks: ${data.stocks.map((s) => s.stock).join(", ")}.`);
+  const pct = (v) => (v === null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`);
+  const lines = [`Tokenized stocks, read for Agent Cat #${cat} · ${data.observedAt} · US market: ${data.usMarket?.state ?? "unknown"}`];
+  for (const s of stocks) {
+    lines.push("", `${s.stock}  share price ${s.sharePrice ?? "–"}${s.closestToShare ? `  · closest: ${s.closestToShare.chain} (${s.closestToShare.issuer})` : ""}`);
+    for (const l of s.listings) lines.push(`  ${l.chain.padEnd(16)} ${(l.issuer ?? "").padEnd(20)} ${String(l.symbol ?? "").padEnd(8)} ${pct(l.premiumPct).padStart(7)}${l.tradable ? "" : "  (thin)"}`);
+  }
+  lines.push("", "% = token price vs the real share price. (thin) = not enough liquidity to trade. Not investment advice.");
+  out(lines, { ...data, cat });
+}
+
 function report(steps, who, doneLines = [], extra = {}) {
   const sent = steps.every((s) => s.sent);
   const handoff = handOff(who, steps);
@@ -293,12 +315,13 @@ const HELP = `Catfooding on Avalanche Fuji
   node cat.mjs adopt --coat=<name>   adopt an Agent Cat (${COATS.join(", ")})
   node cat.mjs cat <number>          look up an Agent Cat
   node cat.mjs check [--cat=<n>]     which Agent Cat this wallet's skills run as (exit 3 if none)
+  node cat.mjs market [--stock=SPCX] tokenized stocks across chains vs the real share price (needs a cat)
 
   Transactions are a dry run unless you add --send.
   --from=<address>   prepare transactions for another wallet to sign (no local key used)
   --json             machine-readable output`;
 
-const commands = { setup, status, mint, adopt, cat: catInfo, check };
+const commands = { setup, status, mint, adopt, cat: catInfo, check, market };
 if (!command || flags.has("--help") || !commands[command]) {
   console.log(HELP);
   process.exit(command && !commands[command] ? 1 : 0);
