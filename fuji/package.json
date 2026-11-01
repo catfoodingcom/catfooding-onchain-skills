@@ -1,0 +1,10 @@
+{
+  "name": "catfooding-fuji",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Catfooding on Avalanche Fuji: an agent sets up a test wallet and adopts an Agent Cat.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "catfooding-fuji": "cat.mjs" },
+  "dependencies": { "viem": "2.57.6" }
+}
