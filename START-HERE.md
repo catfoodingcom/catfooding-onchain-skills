@@ -11,6 +11,7 @@ Give your agent the Catfooding skills and adopt an Agent Cat on Avalanche Fuji. 
 
 ## Six steps
 
+0. **Get the kit.** The easiest way is to give your agent this page's address and say: "Clone https://github.com/catfoodingcom/catfooding-onchain-skills and help me through START-HERE.md." Your agent then does step 1 for you. Or do it yourself: `git clone https://github.com/catfoodingcom/catfooding-onchain-skills`, or use the green **Code** button, then **Download ZIP**.
 1. **Load the skill.** Run `npm install` in the `fuji/` folder. Then give it to your agent:
    - **Claude Code:** copy or link the folder to `~/.claude/skills/catfooding-fuji`.
    - **Codex or another agent:** ask it to read `fuji/SKILL.md` and follow it.
