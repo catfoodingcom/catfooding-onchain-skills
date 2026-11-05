@@ -5,11 +5,15 @@ Give your agent the Catfooding skills and adopt an Agent Cat on Avalanche Fuji. 
 ## You need
 
 - Node.js 20 or newer
-- An agent that can load skills and run commands, such as Claude Code. Any agent that can run a shell command will do.
+- A coding agent: Claude Code, Codex, or any agent that can read files and run commands on your machine.
+
+**Why a coding agent?** The skill is a set of instructions plus a small script. The agent reads the instructions, runs the script to check the network, build transactions and send them once you say yes, and keeps a test key in a file on your machine. A chat-only assistant can't run commands or keep files, so it can explain the steps but not do them. _(More on choosing and setting up an agent to come.)_
 
 ## Six steps
 
-1. **Load the skill.** Copy or link the `fuji/` folder into your agent's skills folder. For Claude Code, that's `~/.claude/skills/catfooding-fuji`. Then run `npm install` in it.
+1. **Load the skill.** Run `npm install` in the `fuji/` folder. Then give it to your agent:
+   - **Claude Code:** copy or link the folder to `~/.claude/skills/catfooding-fuji`.
+   - **Codex or another agent:** ask it to read `fuji/SKILL.md` and follow it.
 2. **Connect a wallet.** Ask your agent to "set up my Catfooding wallet on Fuji". It creates a test wallet and gives you its address. Other options are in [docs/connect-your-wallet.md](docs/connect-your-wallet.md).
 3. **Get test AVAX.** Paste the address into the [Builder Hub faucet](https://build.avax.network/console/primary-network/faucet).
 4. **Adopt an Agent Cat.** Ask "adopt me a Calico cat". The agent mints test dollars, shows you the two transactions and sends them once you say yes.
