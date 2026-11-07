@@ -319,9 +319,9 @@ async function market() {
   const lines = [`Tokenized stocks, read for Agent Cat #${cat} · ${data.observedAt} · US market: ${data.usMarket?.state ?? "unknown"}`];
   for (const s of stocks) {
     lines.push("", `${s.stock}  share price ${s.sharePrice ?? "–"}${s.closestToShare ? `  · closest: ${s.closestToShare.chain} (${s.closestToShare.issuer})` : ""}`);
-    for (const l of s.listings) lines.push(`  ${l.chain.padEnd(16)} ${(l.issuer ?? "").padEnd(20)} ${String(l.symbol ?? "").padEnd(8)} ${pct(l.premiumPct).padStart(7)}${l.tradable ? "" : "  (thin)"}`);
+    for (const l of s.listings) lines.push(`  ${l.chain.padEnd(16)} ${(l.issuer ?? "").padEnd(20)} ${String(l.symbol ?? "").padEnd(8)} ${pct(l.premiumPct).padStart(7)}${l.tradable ? "" : "  (thin)"}${l.stale ? "  (old read)" : ""}`);
   }
-  lines.push("", "% = token price vs the real share price. (thin) = not enough liquidity to trade. Not investment advice.");
+  lines.push("", "% = token price vs the real share price. (thin) = not enough liquidity to trade. (old read) = that chain wasn't read in the last 2 hours. Not investment advice.");
   out(lines, { ...data, cat });
 }
 
