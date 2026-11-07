@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Spot the fake: read-only hunt for tokenized-stock tokens on Avalanche mainnet.
+// Spot the fake: read-only hunt for tokenized-stock tokens on mainnet EVM chains (Avalanche by default).
 // Reads only. It loads no key and has no way to sign or send anything: there is no wallet code in this file.
 // Never buy, approve or interact with a token it finds.
 //
@@ -10,10 +10,16 @@
 //   3. Can you get out?    Pool liquidity and trades in the last 24 hours.
 
 import { createPublicClient, http, getAddress } from "viem";
-import { avalanche } from "viem/chains";
 
-const CHAIN_ID = 43114;
-const RPC = process.env.AVALANCHE_RPC || "https://api.avax.network/ext/bc/C/rpc";
+// The chains the hunt reads. Avalanche is where the kit's cats live (on Fuji); X Layer and Base are the other cat
+// chains; Ethereum and Robinhood Chain are where CoAgentic Markets watches tokenized stocks. Reads only, on all of them.
+const CHAINS = {
+  avalanche: { name: "Avalanche C-Chain", id: 43114, gecko: "avax", rpc: "https://api.avax.network/ext/bc/C/rpc" },
+  xlayer: { name: "X Layer", id: 196, gecko: "x-layer", rpc: "https://rpc.xlayer.tech" },
+  base: { name: "Base", id: 8453, gecko: "base", rpc: "https://mainnet.base.org" },
+  ethereum: { name: "Ethereum", id: 1, gecko: "eth", rpc: "https://ethereum-rpc.publicnode.com" },
+  robinhood: { name: "Robinhood Chain", id: 4663, gecko: "robinhood", rpc: "https://rpc.mainnet.chain.robinhood.com" },
+};
 const SITE = process.env.CATFOODING_SITE || "https://jess.catfooding.com";
 const GECKO = "https://api.geckoterminal.com/api/v2";
 const UA = { "User-Agent": "catfooding-hunt/0.1", Accept: "application/json" };
@@ -38,11 +44,28 @@ const ISSUERS = {
   dinari: {
     name: "Dinari",
     claims: (n, s, t) => /dinari/i.test(n) || new RegExp(`^${t}\\.d$`, "i").test(s),
-    fingerprint: null, // Dinari doesn't publish its Avalanche contract addresses (checked 8 Nov 2026)
+    fingerprint: null, // Dinari doesn't publish its contract addresses (docs checked 8 Nov 2026)
     reference: { beacon: "0x4062d9cbf85da2913880a3a5641cf05e85774f27" },
-    anchor: "Dinari publishes no Avalanche addresses to check against. For comparison: Dinari's Apple token on Ethereum (0x68E670D2f9B792f034a1826cF4A8F180C9952Cb6, as labelled on Etherscan) is a small proxy on this beacon.",
+    anchor: "Dinari publishes no contract addresses to check against. For comparison: Dinari's Apple token on Ethereum (0x68E670D2f9B792f034a1826cF4A8F180C9952Cb6, as labelled on Etherscan) is a small proxy on this beacon.",
   },
 };
+
+// Robinhood's own tokens on Robinhood Chain share one beacon. Not issuer-published, so a match is reported as unanchored.
+ISSUERS.robinhood = {
+  name: "Robinhood",
+  claims: (n) => /robinhood token/i.test(n),
+  fingerprint: { beacon: "0xe10b6f6b275de231345c20d14ab812db62151b00" },
+  unanchored: true,
+  anchor: "Robinhood's tokens on Robinhood Chain (six checked 21 Sep 2026) are all proxies on this beacon. Robinhood doesn't publish an address list, so this is not anchored to the issuer.",
+};
+
+// Families we know but can't settle either way. "Wrapped <Company> xStock" tokens (e.g. wTSLAx on X Layer) share one
+// proxy admin that isn't xStocks' own: they may be the issuer's wrapped product under a separate setup.
+const UNCONFIRMED_FAMILIES = [
+  { proxyAdmin: "0x312063009e74142339edc92bcff6cfcfaa958bfa", note: "one of the 'Wrapped … xStock' family: they share a proxy admin that isn't xStocks' own, and may be xStocks' wrapped product under a separate setup. Not confirmed either way" },
+];
+// A wrapper holds another token. The wrapper is never the issuer's own token, but it may hold the real one.
+const isWrapper = (n, s) => /\bwrapped\b/i.test(n) || /^(w|fw)[A-Z]/.test(s);
 
 // Stocks the hunt knows, with the company names a copy might use.
 const STOCKS = {
@@ -60,24 +83,29 @@ const SLOT = {
 const argv = process.argv.slice(2);
 const JSON_OUT = argv.includes("--json");
 const ticker = (argv.find((a) => !a.startsWith("--")) || "TSLA").toUpperCase();
+const chainKey = (argv.find((a) => a.startsWith("--chain="))?.split("=")[1] || "avalanche").toLowerCase();
 const out = (lines, data) => console.log(JSON_OUT ? JSON.stringify(data, null, 2) : lines.join("\n"));
 const fail = (message) => {
   if (JSON_OUT) console.log(JSON.stringify({ ok: false, error: message }));
   else console.error(`Stopped: ${message}`);
   process.exit(1);
 };
-const HELP = `Spot the fake, read-only, on Avalanche mainnet. Loads no key; sends nothing.
+const HELP = `Spot the fake, read-only, on mainnet. Loads no key; sends nothing.
 
-  node hunt.mjs <STOCK> [--json]     e.g. node hunt.mjs TSLA
+  node hunt.mjs <STOCK> [--chain=<chain>] [--json]     e.g. node hunt.mjs TSLA --chain=xlayer
 
-Stocks: ${Object.keys(STOCKS).join(", ")}`;
+Stocks: ${Object.keys(STOCKS).join(", ")}
+Chains: ${Object.keys(CHAINS).join(", ")} (default avalanche)`;
 if (argv.includes("--help") || argv.includes("-h")) {
   console.log(HELP);
   process.exit(0);
 }
 if (!STOCKS[ticker]) fail(`the hunt doesn't know ${ticker}. Stocks: ${Object.keys(STOCKS).join(", ")}.`);
+const CHAIN = CHAINS[chainKey];
+if (!CHAIN) fail(`the hunt doesn't read ${chainKey}. Chains: ${Object.keys(CHAINS).join(", ")}.`);
+const RPC = process.env.HUNT_RPC || CHAIN.rpc;
 
-const pub = createPublicClient({ chain: avalanche, transport: http(RPC) });
+const pub = createPublicClient({ transport: http(RPC) }); // reads only: no account, no wallet client
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function getJson(url, what) {
   // A room on one Wi-Fi shares GeckoTerminal's per-address limit, so wait and retry for up to about a minute.
@@ -92,11 +120,11 @@ async function getJson(url, what) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.json();
     } catch (e) {
-      if (i === 4) fail(`couldn't read ${what} (${e.message}). Nothing was sent. Try again in a minute: node hunt.mjs ${ticker}`);
+      if (i === 4) fail(`couldn't read ${what} (${e.message}). Nothing was sent. Try again in a minute: node hunt.mjs ${ticker} --chain=${chainKey}`);
       await sleep(3000);
     }
   }
-  fail(`${what} is rate-limiting. Nothing was sent. Try again in a minute: node hunt.mjs ${ticker}`);
+  fail(`${what} is rate-limiting. Nothing was sent. Try again in a minute: node hunt.mjs ${ticker} --chain=${chainKey}`);
 }
 const slotAddress = (v) => (!v || BigInt(v) === 0n ? null : getAddress(`0x${v.slice(-40)}`).toLowerCase());
 const usd = (v) => (v == null ? "–" : `$${Math.round(v).toLocaleString("en-US")}`);
@@ -108,13 +136,13 @@ const of = (name) => (name.endsWith("s") ? `${name}'` : `${name}'s`);
 const claimsStock = (n) => /tokeni[sz]ed|\b[a-z]?stocks?\b|hyperliquid/i.test(n);
 
 async function main() {
-  const id = await pub.getChainId().catch((e) => fail(`could not reach the Avalanche RPC (${e.shortMessage || e.message}).`));
-  if (id !== CHAIN_ID) fail(`the RPC is on chain ${id}, not Avalanche C-Chain (${CHAIN_ID}).`);
+  const id = await pub.getChainId().catch((e) => fail(`could not reach the ${CHAIN.name} RPC (${e.shortMessage || e.message}).`));
+  if (id !== CHAIN.id) fail(`the RPC is on chain ${id}, not ${CHAIN.name} (${CHAIN.id}).`);
 
-  // 1. Find: every DEX pool on Avalanche that turns up for the stock's ticker or company names.
+  // 1. Find: every DEX pool on the chain that turns up for the stock's ticker or company names.
   const pools = new Map();
   for (const q of [ticker, ...STOCKS[ticker]]) {
-    const d = await getJson(`${GECKO}/search/pools?network=avax&query=${encodeURIComponent(q)}`, "GeckoTerminal's pool search");
+    const d = await getJson(`${GECKO}/search/pools?network=${CHAIN.gecko}&query=${encodeURIComponent(q)}`, "GeckoTerminal's pool search");
     for (const p of d.data ?? []) pools.set(p.id, p);
     await sleep(2100); // GeckoTerminal's free API allows about 30 calls a minute
   }
@@ -132,7 +160,7 @@ async function main() {
   const addrs = [...byToken.keys()];
   const meta = new Map();
   for (let i = 0; i < addrs.length; i += 30) {
-    const d = await getJson(`${GECKO}/networks/avax/tokens/multi/${addrs.slice(i, i + 30).join(",")}`, "GeckoTerminal's token data");
+    const d = await getJson(`${GECKO}/networks/${CHAIN.gecko}/tokens/multi/${addrs.slice(i, i + 30).join(",")}`, "GeckoTerminal's token data");
     for (const t of d.data ?? []) meta.set(t.attributes.address.toLowerCase(), t.attributes);
     await sleep(2100);
   }
@@ -159,7 +187,9 @@ async function main() {
       pub.getCode({ address }),
       ...Object.values(SLOT).map((slot) => pub.getStorageAt({ address, slot })),
     ]);
-    const fp = { codeBytes: code ? (code.length - 2) / 2 : 0, implementation: slotAddress(impl), proxyAdmin: slotAddress(admin), beacon: slotAddress(beacon) };
+    // A 45-byte EIP-1167 clone keeps its target in the code itself, not in a storage slot.
+    const clone = code && /^0x363d3d373d3d3d363d73[0-9a-f]{40}5af43d82803e903d91602b57fd5bf3$/i.test(code) ? `0x${code.slice(22, 62)}`.toLowerCase() : null;
+    const fp = { codeBytes: code ? (code.length - 2) / 2 : 0, implementation: slotAddress(impl), proxyAdmin: slotAddress(admin), beacon: slotAddress(beacon), cloneOf: clone };
     const liquidityUsd = t.pools.reduce((s, p) => s + p.liquidityUsd, 0);
     const volume24hUsd = t.pools.reduce((s, p) => s + p.volume24hUsd, 0);
     const best = [...t.pools].sort((a, b) => b.liquidityUsd - a.liquidityUsd)[0];
@@ -167,7 +197,15 @@ async function main() {
     const pricedLikeStock = premiumPct !== null && Math.abs(premiumPct) < 20;
     const claimed = Object.entries(ISSUERS).find(([, i]) => i.claims(t.name, t.symbol, ticker))?.[0] ?? null;
     let verdict, why;
-    if (!claimed && pricedLikeStock) {
+    const family = UNCONFIRMED_FAMILIES.find((f) => f.proxyAdmin === fp.proxyAdmin);
+    const issuerMatch = claimed && ISSUERS[claimed].fingerprint && Object.entries(ISSUERS[claimed].fingerprint).every(([k, v]) => fp[k] === v);
+    if (family && !issuerMatch) {
+      verdict = "unconfirmed";
+      why = family.note;
+    } else if (!issuerMatch && isWrapper(t.name, t.symbol)) {
+      verdict = "unconfirmed";
+      why = `a wrapper${claimed ? ` using ${of(ISSUERS[claimed].name)} name` : ""}: it isn't the issuer's own token, but it may hold the real one. Check what it wraps before trusting it`;
+    } else if (!claimed && pricedLikeStock) {
       verdict = "unconfirmed";
       why = "names no issuer, yet its pool prices it near the share: it may be run as a stock token, but there's no issuer to check it against";
     } else if (!claimed && claimsStock(t.name)) {
@@ -181,12 +219,12 @@ async function main() {
       const ok = fp[k] === v;
       verdict = ok ? "issuer" : "lookalike";
       const nm = ISSUERS[claimed].name;
-      why = ok ? `${k} matches ${nm}` : `uses ${of(nm)} name, but its ${k} isn't ${of(nm)}${fp.implementation || fp.beacon ? "" : " (it isn't a proxy at all)"}`;
+      why = ok ? `${k} matches ${of(nm)}${ISSUERS[claimed].unanchored ? " (not anchored: the issuer publishes no address list)" : ""}` : `uses ${of(nm)} name, but its ${k} isn't ${of(nm)}${fp.cloneOf ? ` (it's a minimal clone of ${fp.cloneOf}, not the issuer's proxy)` : fp.implementation || fp.beacon ? "" : " (it isn't a proxy at all)"}`;
     } else {
       verdict = "unconfirmed";
       const ref = ISSUERS[claimed].reference;
       const likeRef = ref && fp.beacon === ref.beacon;
-      why = `uses ${of(ISSUERS[claimed].name)} name; ${ISSUERS[claimed].name} publishes no Avalanche addresses to check against${likeRef ? ", though it is a proxy on the same beacon as Dinari's Ethereum tokens" : `, and unlike Dinari's tokens on Ethereum it ${fp.beacon ? "is on a different beacon" : "isn't a proxy"}`}`;
+      why = `uses ${of(ISSUERS[claimed].name)} name; ${ISSUERS[claimed].name} publishes no contract addresses to check against${likeRef ? ", though it is a proxy on the same beacon as Dinari's Ethereum tokens" : `, and unlike Dinari's tokens on Ethereum it ${fp.beacon ? "is on a different beacon" : "isn't a proxy"}`}`;
     }
     const canExit = liquidityUsd >= EXIT_MIN_USD && volume24hUsd >= EXIT_MIN_VOLUME_USD;
     tokens.push({
@@ -209,7 +247,7 @@ async function main() {
   const count = (v) => tokens.filter((t) => t.verdict === v).length;
   const LABEL = { issuer: "FROM ISSUER", lookalike: "LOOK-ALIKE", unconfirmed: "CAN'T CONFIRM", "no-issuer": "BORROWS NAME" };
   const lines = [
-    `Spot the fake: ${ticker} on Avalanche C-Chain · ${new Date().toISOString().slice(0, 16)}Z · read-only, nothing sent`,
+    `Spot the fake: ${ticker} on ${CHAIN.name} · ${new Date().toISOString().slice(0, 16)}Z · read-only, nothing sent`,
     `Share price: ${share ? `$${share}` : "not available right now"}`,
     "",
     ...tokens.flatMap((t) => [
@@ -226,7 +264,7 @@ async function main() {
     "These are on-chain facts about each contract, not claims about who made it. Don't buy, approve or interact with any of these tokens.",
     "Fingerprints: " + Object.values(ISSUERS).map((i) => `${i.name}: ${i.anchor}`).join(" "),
   ];
-  out(lines, { ok: true, chain: "avalanche", chainId: CHAIN_ID, stock: ticker, sharePrice: share, readAt: new Date().toISOString(), tokens, families, exitMinUsd: EXIT_MIN_USD, exitMinVolumeUsd: EXIT_MIN_VOLUME_USD, issuers: Object.fromEntries(Object.entries(ISSUERS).map(([k, i]) => [k, { name: i.name, fingerprint: i.fingerprint, anchor: i.anchor }])) });
+  out(lines, { ok: true, chain: chainKey, chainId: CHAIN.id, stock: ticker, sharePrice: share, readAt: new Date().toISOString(), tokens, families, exitMinUsd: EXIT_MIN_USD, exitMinVolumeUsd: EXIT_MIN_VOLUME_USD, issuers: Object.fromEntries(Object.entries(ISSUERS).map(([k, i]) => [k, { name: i.name, fingerprint: i.fingerprint, anchor: i.anchor }])) });
 }
 
 main().catch((e) => fail(e.shortMessage || e.message));

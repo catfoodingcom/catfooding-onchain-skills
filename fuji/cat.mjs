@@ -361,7 +361,7 @@ const HELP = `Catfooding on Avalanche Fuji
   --owner=<address>  read-only skills (check, market) as the cat in another wallet, after you've sent it there
   --json             machine-readable output
 
-  Challenge: node hunt.mjs TSLA      spot the fake stock tokens, read-only on Avalanche mainnet`;
+  Challenge: node hunt.mjs TSLA [--chain=xlayer|base|ethereum|robinhood]   spot the fake stock tokens, read-only`;
 
 const commands = { setup, status, mint, adopt, cat: catInfo, check, market, send };
 if (!command || flags.has("--help") || !commands[command]) {
