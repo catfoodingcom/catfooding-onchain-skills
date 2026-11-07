@@ -1,6 +1,6 @@
 # Connect your agent's wallet
 
-This is the first step of the kit: give your agent a wallet it can use on Avalanche Fuji. The Catfooding steps after it are the same whichever signer you pick.
+This is step 3 of [START-HERE](../START-HERE.md): give your agent a wallet it can use on Avalanche Fuji. The Catfooding steps after it are the same whichever signer you pick.
 
 | Signer | Networks | Who holds the key | Best for |
 |---|---|---|---|
@@ -27,6 +27,7 @@ Rules:
 - It's a **test wallet**. Never copy a real wallet's key into that file, and never send real funds to it.
 - To keep the key somewhere else, set `CATFOODING_KEY_FILE=/path/to/file`.
 - The script stops if its RPC is on any network other than Fuji, even when you set `FUJI_RPC` yourself.
+- **To look after your cat on the test site**, the cat has to be in a wallet your browser can sign with. The easy way: ask your agent to send the cat to your browser wallet (`node cat.mjs send <number> --to=<address>`). Or import this test key into a browser wallet yourself, in a separate browser profile kept for testing. Never paste it into a chat or give it to anyone.
 
 ## 2. Your browser wallet signs (hand-off)
 

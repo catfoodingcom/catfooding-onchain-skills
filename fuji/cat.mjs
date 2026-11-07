@@ -33,6 +33,7 @@ const catsAbi = [
   { type: "function", name: "ownerOf", stateMutability: "view", inputs: [{ name: "id", type: "uint256" }], outputs: [{ type: "address" }] },
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "coatOf", stateMutability: "view", inputs: [{ name: "id", type: "uint256" }], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "safeTransferFrom", stateMutability: "nonpayable", inputs: [{ name: "from", type: "address" }, { name: "to", type: "address" }, { name: "id", type: "uint256" }], outputs: [] },
   { type: "function", name: "litterOf", stateMutability: "view", inputs: [{ name: "id", type: "uint256" }], outputs: [{ type: "uint32" }] },
   { type: "event", name: "Adopted", inputs: [
     { name: "tokenId", type: "uint256", indexed: true }, { name: "adopter", type: "address", indexed: true },
@@ -68,6 +69,7 @@ const fail = (message, code = 1) => {
 const usd = (v) => `${formatUnits(v, 6)} tUSD`;
 const avax = (v) => `${Number(formatUnits(v, 18)).toFixed(4)} AVAX`;
 const txLink = (h) => `${EXPLORER}/tx/${h}`;
+const catPage = (id) => `${SITE}/cats/${CHAIN_ID}/${id}`; // public, read-only: anyone with the link sees the cat
 
 const pub = createPublicClient({ chain: avalancheFuji, transport: http(RPC) });
 
@@ -87,9 +89,12 @@ function loadKey() {
   return privateKeyToAccount(key);
 }
 function whoAmI() {
-  const from = opt("from");
+  // --owner=<address> reads as a cat owned by another wallet (say, after sending your cat to your browser
+  // wallet). Read-only skills only: with no key for that wallet, nothing can be sent for it.
+  const flag = opt("from") !== undefined ? "from" : "owner";
+  const from = opt(flag);
   if (from) {
-    if (!isAddress(from)) fail(`--from=${from} isn't an address.`);
+    if (!isAddress(from)) fail(`--${flag}=${from} isn't an address.`);
     return { address: getAddress(from), account: null };
   }
   const account = loadKey();
@@ -157,8 +162,9 @@ async function status() {
     `Wallet ${who.address} on Avalanche Fuji`,
     `Gas: ${avax(b.gas)}${b.gas < MIN_GAS ? `  ← low; get test AVAX at ${FAUCET}` : ""}`,
     `Test dollars: ${usd(b.dollars)}`,
-    `Agent Cats: ${ids.length ? ids.map((i) => `#${i}`).join(", ") : "none yet. Adopt one with: node cat.mjs adopt --coat=Calico"}`,
-  ], { ok: true, address: who.address, gas: formatUnits(b.gas, 18), dollars: formatUnits(b.dollars, 6), cats: ids });
+    `Agent Cats: ${ids.length ? ids.map((i) => `#${i}`).join(", ") : 'none in this wallet. Adopt one: pick a coat and run "node cat.mjs adopt --coat=<coat>"'}`,
+    ...ids.map((i) => `  #${i}: ${catPage(i)}`),
+  ], { ok: true, address: who.address, gas: formatUnits(b.gas, 18), dollars: formatUnits(b.dollars, 6), cats: ids, pages: ids.map(catPage) });
 }
 
 async function catsOf(address, count) {
@@ -218,7 +224,7 @@ async function adopt() {
     const [ev] = parseEventLogs({ abi: catsAbi, eventName: "Adopted", logs: last.receipt.logs });
     cat = Number(ev.args.tokenId);
   }
-  report(steps, who, cat ? [`Adopted Agent Cat #${cat} (${COATS[coat]}).`, `See it: ${SITE}/room`] : [], { cat });
+  report(steps, who, cat ? [`Adopted Agent Cat #${cat} (${COATS[coat]}).`, `Its page (anyone with the link can see it): ${catPage(cat)}`] : [], { cat, page: cat ? catPage(cat) : null });
 }
 
 async function catInfo() {
@@ -236,8 +242,8 @@ async function catInfo() {
     `Agent Cat #${arg} on Avalanche Fuji`,
     `Owner: ${owner}`,
     `Coat: ${COATS[coat] ?? coat} · Litter ${litter} · Stage: ${stage}`,
-    meta?.image ? `Picture: ${meta.image}` : null,
-  ], { ok: true, cat: Number(id), owner, coat: COATS[coat] ?? coat, litter, stage, image: meta?.image ?? null });
+    `Page: ${catPage(arg)}`,
+  ], { ok: true, cat: Number(id), owner, coat: COATS[coat] ?? coat, litter, stage, page: catPage(arg), image: meta?.image ?? null });
 }
 
 // ---- the Agent Cat gate: skills belong to a cat, so every skill past adoption runs this first ----
@@ -255,7 +261,7 @@ async function requireCat(who) {
   }
   const count = await pub.readContract({ address: CATS, abi: catsAbi, functionName: "balanceOf", args: [who.address] });
   const [first] = await catsOf(who.address, count);
-  if (!first) fail(`no Agent Cat in ${who.address}. Skills belong to an Agent Cat: adopt one first with "node cat.mjs adopt --coat=Calico".`, NO_CAT);
+  if (!first) fail(`no Agent Cat in ${who.address}. Skills belong to an Agent Cat, so adopt one first: pick a coat and run "node cat.mjs adopt --coat=<coat>".`, NO_CAT);
   return first;
 }
 
@@ -263,7 +269,35 @@ async function check() {
   await checkNetwork();
   const who = whoAmI();
   const cat = await requireCat(who);
-  out([`Skills run as Agent Cat #${cat}, owned by ${who.address}.`], { ok: true, cat, address: who.address });
+  out([`Skills run as Agent Cat #${cat}, owned by ${who.address}.`, `Its page: ${catPage(cat)}`], { ok: true, cat, address: who.address, readOnly: !who.account, page: catPage(cat) });
+}
+
+// ---- send a cat to another wallet, e.g. from the agent's test wallet to the person's own browser wallet ----
+async function send() {
+  await checkNetwork();
+  if (opt("owner") !== undefined) fail("--owner is for read-only skills. Send from the wallet that holds the cat.");
+  const who = whoAmI();
+  if (!arg || !/^\d+$/.test(arg)) fail("give the cat number and where to send it, e.g. node cat.mjs send 3 --to=0xYourWallet");
+  const to = opt("to");
+  if (!to || !isAddress(to)) fail("say where to send it with --to=<address>: the wallet that should own the cat.");
+  const dest = getAddress(to);
+  if (dest === who.address) fail("that's the wallet the cat is already in.");
+  if (/^0x0{40}$/i.test(dest)) fail("that's the zero address: a cat sent there is gone for good.");
+  // a contract can only hold a cat if it says it accepts one; refuse them for now (a cat's vault comes later)
+  const code = await pub.getCode({ address: dest });
+  if (code && code !== "0x") fail(`${dest} is a contract, not a wallet. Send the cat to a wallet address (like the one in your browser wallet).`);
+  const id = BigInt(arg);
+  const owner = await pub.readContract({ address: CATS, abi: catsAbi, functionName: "ownerOf", args: [id] }).catch(() => fail(`there's no Agent Cat #${arg} on Fuji.`));
+  if (getAddress(owner) !== who.address) fail(`Agent Cat #${arg} belongs to ${owner}, not this wallet (${who.address}).`, NO_CAT);
+  const b = await balances(who.address);
+  if (who.account && b.gas < MIN_GAS) fail(`the wallet has ${avax(b.gas)}, not enough for gas. Get test AVAX at ${FAUCET}`);
+
+  const step = await transact(who, { to: CATS, abi: catsAbi, functionName: "safeTransferFrom", args: [who.address, dest, id], says: `Send Agent Cat #${arg} to ${dest}` });
+  report([step], who, step.sent ? [
+    `Agent Cat #${arg} is now in ${dest}. Its stage and care went with it.`,
+    `Sign in with that wallet to look after it: ${catPage(arg)}`,
+    `This wallet no longer holds it. To keep reading with the cat, add --owner=${dest} (read-only).`,
+  ] : [], { cat: Number(arg), to: dest, page: catPage(arg) });
 }
 
 // ---- market data: tokenized stocks across chains (a skill, so it runs as the wallet's cat) ----
@@ -272,9 +306,12 @@ async function market() {
   const who = whoAmI();
   const cat = await requireCat(who);
   const want = opt("stock")?.toUpperCase();
-  const data = await fetch(`${SITE}/api/market/stocks`, { signal: AbortSignal.timeout(15000) })
-    .then((r) => r.json())
-    .catch(() => fail("couldn't reach Catfooding's market data. Try again in a minute."));
+  const url = `${SITE}/api/market/stocks`;
+  const retry = `Your Agent Cat #${cat} is fine. Try again in a minute: node cat.mjs market`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    .catch((e) => fail(`couldn't reach Catfooding's market data at ${url} (${e.name === "TimeoutError" ? "timed out after 15 s" : "network error"}). ${retry}`));
+  if (!res.ok) fail(`Catfooding's market data at ${url} answered HTTP ${res.status}. ${retry}`);
+  const data = await res.json().catch(() => fail(`Catfooding's market data at ${url} sent something that isn't JSON. ${retry}`));
   if (!data?.ok) fail(data?.error ?? "market data isn't available right now.");
   const stocks = want ? data.stocks.filter((s) => s.stock === want) : data.stocks;
   if (want && !stocks.length) fail(`no data for ${want}. Stocks: ${data.stocks.map((s) => s.stock).join(", ")}.`);
@@ -316,12 +353,14 @@ const HELP = `Catfooding on Avalanche Fuji
   node cat.mjs cat <number>          look up an Agent Cat
   node cat.mjs check [--cat=<n>]     which Agent Cat this wallet's skills run as (exit 3 if none)
   node cat.mjs market [--stock=SPCX] tokenized stocks across chains vs the real share price (needs a cat)
+  node cat.mjs send <number> --to=<address>  send a cat to another wallet, e.g. your browser wallet
 
   Transactions are a dry run unless you add --send.
   --from=<address>   prepare transactions for another wallet to sign (no local key used)
+  --owner=<address>  read-only skills (check, market) as the cat in another wallet, after you've sent it there
   --json             machine-readable output`;
 
-const commands = { setup, status, mint, adopt, cat: catInfo, check, market };
+const commands = { setup, status, mint, adopt, cat: catInfo, check, market, send };
 if (!command || flags.has("--help") || !commands[command]) {
   console.log(HELP);
   process.exit(command && !commands[command] ? 1 : 0);
