@@ -36,12 +36,22 @@ This repository is public, so cloning needs no GitHub account.
 
 The script says why it stopped and what to do. Anything already sent stays done: if adoption worked and a later step fails, your cat is still yours. Ask your agent to run the same step again, for example `node cat.mjs market`. If it keeps failing, tell us at the event.
 
-## Challenges
+## Challenge: spot the fake
 
-_Coming before the event._
+Tokenized stocks are real shares on a chain, from issuers such as xStocks, Ondo and Dinari. Copies of them are everywhere. Search Avalanche's DEX pools for "TSLA" today and you'll find more than a dozen tokens carrying Tesla's name. None of them is from the issuer it names.
+
+Your agent goes hunting, read-only, on Avalanche mainnet. Ask it: **"hunt for fake TSLA tokens on Avalanche"** (or AAPL, NVDA, SPY, MSFT, AMZN, MSTR, CRCL, HOOD…). It runs `node hunt.mjs TSLA` and checks every token with the stock's name three ways:
+
+1. **Is it real?** Only the chain can say: who controls the contract. A name, a symbol, a pool or a price is never proof; copies copy all of them.
+2. **Is the price fair?** The token's pool price against the real share price.
+3. **Can you get out?** Enough liquidity and trades to sell into.
+
+**To win, tell us at the event:** for the stock you hunted, how many tokens carry its name, how many are from the issuer they name, and whether you could sell any of them. Then the hard part: explain why one of them can't be confirmed either way.
+
+Rules: the hunt only reads. It loads no key and can't send anything. Never buy, approve or interact with a token it finds. Its findings are facts about each contract, not claims about who made it.
 
 ## Safety
 
-- Fuji only. The script refuses every other network.
+- Transactions are Fuji only: `cat.mjs` refuses every other network. The challenge's `hunt.mjs` reads Avalanche mainnet, but loads no key and can't send anything.
 - Your keys stay with you. We never hold keys or funds.
 - Every transaction is a dry run until you say send. Approvals are exact, never unlimited.

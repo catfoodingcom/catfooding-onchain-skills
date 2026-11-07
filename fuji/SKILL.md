@@ -1,6 +1,6 @@
 ---
 name: catfooding-fuji
-description: Adopt and look after a Catfooding Agent Cat on Avalanche Fuji (testnet). Use when the person asks to set up a Fuji test wallet, get test dollars, adopt an Agent Cat, pick a coat, check on their cat, read the market with it, or send it to their own wallet. Fuji only; every transaction is a dry run until the person says send.
+description: Adopt and look after a Catfooding Agent Cat on Avalanche Fuji (testnet). Use when the person asks to set up a Fuji test wallet, get test dollars, adopt an Agent Cat, pick a coat, check on their cat, read the market with it, send it to their own wallet, or hunt for fake tokenized-stock tokens (the "spot the fake" challenge, read-only on Avalanche mainnet). Transactions are Fuji only; every transaction is a dry run until the person says send.
 ---
 
 # Catfooding on Avalanche Fuji
@@ -21,6 +21,7 @@ All steps go through one script in this folder. Run it from here (`npm install` 
 | check which cat the skills run as | `node cat.mjs check` (or `--cat=<number>`) |
 | see tokenized stocks across chains | `node cat.mjs market` (or `--stock=SPCX`); needs a cat |
 | send a cat to their own wallet | `node cat.mjs send <number> --to=<address>` |
+| hunt for fake stock tokens (the challenge) | `node hunt.mjs TSLA` (any stock it lists); read-only, Avalanche mainnet |
 
 **The cat check.** Before any skill other than setup, mint, adopt and look-up, run `node cat.mjs check --json`. Continue only if it returns `ok: true`, and use its `cat` as the cat you're acting for. Exit code 3 means no Agent Cat (or not this wallet's cat): offer to adopt one, and do nothing else.
 
@@ -47,9 +48,19 @@ An adoption is two transactions: an approval of exactly the price, then the adop
 - **The cat moves to the person's wallet.** After `send`, the agent's wallet no longer holds the cat. Read-only skills (`check`, `market`) can run for it with `--owner=<their address>`; nothing can be sent for that wallet from here. Give the person the cat's page link (every command that shows a cat prints it) so they can sign in there.
 - **OKX Onchain OS wallets** don't support Fuji yet. See `../docs/connect-your-wallet.md`.
 
+## Spot the fake (read-only)
+
+`hunt.mjs` is a separate script. It reads Avalanche mainnet: DEX pools from GeckoTerminal's public API and each contract from the chain. It has no wallet code, loads no key and can't send anything. It doesn't need a cat.
+
+- Give the person its verdicts as printed: FROM ISSUER, LOOK-ALIKE, CAN'T CONFIRM, BORROWS NAME, with the reason line, plus whether any token could be sold.
+- Only FROM ISSUER passes. Never call a token genuine because of its name, symbol, pool, price or listing.
+- State findings as facts about the contract ("its beacon isn't Ondo's"), never as claims about who made it or why.
+- Never offer to buy, approve, swap, bridge or interact with a token it finds, and never pass a found address to `cat.mjs`.
+- To win the challenge, the person explains the counts and why a CAN'T CONFIRM token can't be settled either way. Help them reason; don't just read the summary out.
+
 ## Rules (the script enforces these too)
 
-- Fuji only. It stops if the RPC is any other chain.
+- Transactions: Fuji only. `cat.mjs` stops if the RPC is any other chain. `hunt.mjs` reads Avalanche mainnet and can't send.
 - Approvals are always the exact price, never unlimited.
 - Never ask for, print or paste a private key. Never put a real wallet's key in the key file.
 - When the script prints `Stopped: …`, tell the person why and what to do next. Don't work around it. Say what already worked (an adopted cat stays adopted) and give the exact command to try again, e.g. `node cat.mjs market`.

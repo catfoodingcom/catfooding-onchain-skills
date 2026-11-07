@@ -322,7 +322,8 @@ async function market() {
     for (const l of s.listings) lines.push(`  ${l.chain.padEnd(16)} ${(l.issuer ?? "").padEnd(20)} ${String(l.symbol ?? "").padEnd(8)} ${pct(l.premiumPct).padStart(7)}${l.tradable ? "" : "  (thin)"}${l.stale ? "  (old read)" : ""}`);
   }
   lines.push("", "% = token price vs the real share price. (thin) = not enough liquidity to trade. (old read) = that chain wasn't read in the last 2 hours. Not investment advice.");
-  out(lines, { ...data, cat });
+  lines.push("Data: CoAgentic Markets lab (coagentic.markets/lab/chains)");
+  out(lines, { ...data, cat, source: "CoAgentic Markets lab (https://coagentic.markets/lab/chains)" });
 }
 
 function report(steps, who, doneLines = [], extra = {}) {
@@ -358,7 +359,9 @@ const HELP = `Catfooding on Avalanche Fuji
   Transactions are a dry run unless you add --send.
   --from=<address>   prepare transactions for another wallet to sign (no local key used)
   --owner=<address>  read-only skills (check, market) as the cat in another wallet, after you've sent it there
-  --json             machine-readable output`;
+  --json             machine-readable output
+
+  Challenge: node hunt.mjs TSLA      spot the fake stock tokens, read-only on Avalanche mainnet`;
 
 const commands = { setup, status, mint, adopt, cat: catInfo, check, market, send };
 if (!command || flags.has("--help") || !commands[command]) {
