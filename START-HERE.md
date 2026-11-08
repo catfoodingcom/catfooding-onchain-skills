@@ -13,7 +13,7 @@ Give your agent the Catfooding skills and adopt an Agent Cat on Avalanche Fuji. 
 
 Open your agent and paste this:
 
-> Clone https://github.com/catfoodingcom/catfooding-onchain-skills into a new folder for it (suggest where first). Then read START-HERE.md and fuji/SKILL.md and walk me through the steps. Keep going on your own; stop only when you need my answer, test AVAX from the faucet, a permission, or my yes to send a transaction.
+> Clone https://github.com/catfoodingcom/catfooding-onchain-skills into a new folder for it (suggest where first). Then read START-HERE.md and fuji/SKILL.md and walk me through the steps, including the challenge in step 9. Keep going on your own; stop only when you need my answer, test AVAX from the faucet, a permission, or my yes to send a transaction.
 
 This repository is public, so cloning needs no GitHub account.
 
@@ -31,6 +31,7 @@ This repository is public, so cloning needs no GitHub account.
 6. **Read the market with your cat.** Ask "how are tokenized stocks priced across chains?" Your cat reads the same stock on X Layer, Robinhood Chain, Solana and Ethereum, and how far each is from the real share price.
 7. **Check on your cat.** Ask "how's my cat?" Your agent gives you the cat's own page, for example `jess.catfooding.com/cats/43113/3`. Anyone with the link can see it, no wallet needed.
 8. **Take your cat home (optional).** To pat and feed it on the site, the cat has to be in a wallet your browser can sign with. Ask "send my cat to my wallet" and give your browser wallet's address (MetaMask, Core, OKX Wallet…). Your agent shows the transfer and sends it when you say yes. Then sign in on the cat's page with that wallet. Its stage and care go with it. Your agent can still read the market for it with `--owner=<your address>`, read-only.
+9. **Spot the fake (the challenge).** Ask "hunt for fake TSLA tokens on Avalanche". Your agent runs `node hunt.mjs TSLA`. It only reads, and needs no key, no cat and no test AVAX. Then try another chain. What it checks and how to win are in [Challenge: spot the fake](#challenge-spot-the-fake) below.
 
 ## If something stops
 
