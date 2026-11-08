@@ -309,6 +309,10 @@ async function send() {
   const dest = getAddress(to);
   if (dest === who.address) fail("that's the wallet the cat is already in.");
   if (/^0x0{40}$/i.test(dest)) fail("that's the zero address: a cat sent there is gone for good.");
+  // Never into its own wallet, created or not: the cat would control the wallet holding the cat, and
+  // neither could ever be moved again. (A wallet not created yet has no code, so the contract check misses it.)
+  const ownWallet = await pub.readContract({ address: TBA_REGISTRY, abi: registryAbi, functionName: "account", args: tbaArgs(BigInt(arg)) });
+  if (getAddress(ownWallet) === dest) fail(`${dest} is Agent Cat #${arg}'s own wallet. A cat can't go into its own wallet: both would be locked forever. Send it to a person's wallet.`);
   // a contract can only hold a cat if it says it accepts one; refuse them for now (a cat's vault comes later)
   const code = await pub.getCode({ address: dest });
   if (code && code !== "0x") fail(`${dest} is a contract, not a wallet. Send the cat to a wallet address (like the one in your browser wallet).`);

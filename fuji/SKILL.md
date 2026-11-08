@@ -58,6 +58,7 @@ Each Agent Cat can have a wallet of its own: an ERC-6551 token-bound account, cr
 
 - **Whoever holds the cat controls its wallet.** If the cat changes hands, the wallet and everything in it go with it. Say so whenever the person puts something in it.
 - **It's for the cat's own small things, never the person's money.** `wallet fund` is capped at 100 test dollars at a time.
+- **The cat stays in the person's wallet; the cat's wallet belongs to the cat.** Never send the cat into its own wallet, created or not: the cat would control the wallet holding it, and both would be locked forever. `send` refuses it.
 - `wallet return` makes the cat's wallet act: it sends test dollars back to the owner, signed by the owner's key. That's the point to show the person: the cat has its own address, and only its owner can make it act.
 - Same steps as every transaction: dry run first, then `--send` on their yes. After the cat is sent to the person's browser wallet, use `--from=<their address>` to prepare `wallet create` for them to sign.
 
