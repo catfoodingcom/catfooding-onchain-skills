@@ -21,6 +21,15 @@ const EXPLORER = "https://testnet.snowtrace.io";
 const KEY_FILE = process.env.CATFOODING_KEY_FILE || join(homedir(), ".catfooding", "fuji-test-key");
 const MIN_GAS = parseUnits("0.005", 18); // enough AVAX for an approve and an adopt, with room to spare
 const MINT_LIMIT = 1000;
+// A cat's own wallet (ERC-6551 token-bound account). Every address here is already deployed and verified
+// on Fuji: the standard registry, and Tokenbound's account proxy and account. Nothing of ours to trust.
+const TBA_REGISTRY = getAddress("0x000000006551c19487814612e58FE06813775758");
+const TBA_PROXY = getAddress("0x55266d75D1a14E4572138116aF39863Ed6596E7F"); // Tokenbound AccountProxy
+const TBA_ACCOUNT = getAddress("0x41C8f39463A868d3A88af00cd0fe7102F30E44eC"); // Tokenbound AccountV3Upgradable
+const MULTICALL3 = getAddress("0xcA11bde05977b3631167028862bE2a173976CA11");
+const TBA_SALT = `0x${"0".repeat(64)}`;
+const CAT_WALLET_FUND_LIMIT = 100; // test dollars per top-up: the cat's wallet is for its own small things
+const IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"; // EIP-1967
 
 const catsAbi = [
   { type: "function", name: "adopt", stateMutability: "nonpayable", inputs: [{ name: "coat", type: "uint8" }], outputs: [{ type: "uint256" }] },
@@ -46,6 +55,20 @@ const dollarAbi = [
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+];
+const tbaArgs = (id) => [TBA_PROXY, TBA_SALT, BigInt(CHAIN_ID), CATS, id];
+const registryAbi = [
+  { type: "function", name: "account", stateMutability: "view", inputs: [{ name: "implementation", type: "address" }, { name: "salt", type: "bytes32" }, { name: "chainId", type: "uint256" }, { name: "tokenContract", type: "address" }, { name: "tokenId", type: "uint256" }], outputs: [{ type: "address" }] },
+  { type: "function", name: "createAccount", stateMutability: "nonpayable", inputs: [{ name: "implementation", type: "address" }, { name: "salt", type: "bytes32" }, { name: "chainId", type: "uint256" }, { name: "tokenContract", type: "address" }, { name: "tokenId", type: "uint256" }], outputs: [{ type: "address" }] },
+];
+const proxyAbi = [{ type: "function", name: "initialize", stateMutability: "nonpayable", inputs: [{ name: "implementation", type: "address" }], outputs: [] }];
+const accountAbi = [
+  { type: "function", name: "execute", stateMutability: "payable", inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }, { name: "data", type: "bytes" }, { name: "operation", type: "uint8" }], outputs: [{ type: "bytes" }] },
+  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+const multicallAbi = [
+  { type: "function", name: "aggregate3", stateMutability: "payable", inputs: [{ name: "calls", type: "tuple[]", components: [{ name: "target", type: "address" }, { name: "allowFailure", type: "bool" }, { name: "callData", type: "bytes" }] }], outputs: [{ type: "tuple[]", components: [{ name: "success", type: "bool" }, { name: "returnData", type: "bytes" }] }] },
 ];
 
 // ---- arguments ----
@@ -304,6 +327,78 @@ async function send() {
   ] : [], { cat: Number(arg), to: dest, page: catPage(arg) });
 }
 
+// ---- the cat's own wallet (ERC-6551): an address tied to the cat; whoever holds the cat controls it ----
+async function catWalletState(id) {
+  const address = await pub.readContract({ address: TBA_REGISTRY, abi: registryAbi, functionName: "account", args: tbaArgs(id) });
+  const code = await pub.getCode({ address });
+  const exists = !!code && code !== "0x";
+  const implWord = exists ? await pub.getStorageAt({ address, slot: IMPL_SLOT }) : null;
+  const ready = !!implWord && BigInt(implWord) !== 0n;
+  const [gas, dollars] = await Promise.all([
+    pub.getBalance({ address }),
+    pub.readContract({ address: DOLLAR, abi: dollarAbi, functionName: "balanceOf", args: [address] }),
+  ]);
+  return { address: getAddress(address), exists, ready, gas, dollars };
+}
+
+const CAT_WALLET_RULES = [
+  "What it is: a wallet that belongs to the cat. Whoever holds the cat controls it, so it moves with the cat.",
+  "What it isn't: a place for your own money. If the cat changes hands, everything in its wallet goes with it.",
+];
+
+async function wallet() {
+  await checkNetwork();
+  const action = arg ?? "show";
+  if (!["show", "create", "fund", "return"].includes(action)) fail(`"wallet ${action}" isn't a wallet command. Use: wallet, wallet create, wallet fund <amount>, wallet return <amount|all>.`);
+  const who = whoAmI();
+  const cat = await requireCat(who);
+  const id = BigInt(cat);
+  const w = await catWalletState(id);
+
+  if (action === "show") {
+    return out([
+      `Agent Cat #${cat}'s own wallet: ${w.address}`,
+      w.ready ? "Created. The cat's owner controls it." : w.exists ? "Created but not set up yet: run \"node cat.mjs wallet create\" to finish." : "Not created yet: its address is known already. Run \"node cat.mjs wallet create\" to create it.",
+      `Holds: ${avax(w.gas)} · ${usd(w.dollars)}`,
+      `See it: ${EXPLORER}/address/${w.address}`,
+      ...CAT_WALLET_RULES,
+    ], { ok: true, cat, wallet: w.address, created: w.ready, gas: w.gas, dollars: w.dollars, explorer: `${EXPLORER}/address/${w.address}` });
+  }
+  if (opt("owner") !== undefined) fail("--owner is read-only. Use the wallet that holds the cat.");
+
+  if (action === "create") {
+    if (w.ready) fail(`Agent Cat #${cat}'s wallet already exists: ${w.address}`);
+    const calls = [];
+    if (!w.exists) calls.push({ target: TBA_REGISTRY, allowFailure: false, callData: encodeFunctionData({ abi: registryAbi, functionName: "createAccount", args: tbaArgs(id) }) });
+    calls.push({ target: w.address, allowFailure: false, callData: encodeFunctionData({ abi: proxyAbi, functionName: "initialize", args: [TBA_ACCOUNT] }) });
+    const step = await transact(who, { to: MULTICALL3, abi: multicallAbi, functionName: "aggregate3", args: [calls], says: `Create Agent Cat #${cat}'s own wallet at ${w.address}` });
+    return report([step], who, step.sent ? [`Agent Cat #${cat} has its own wallet: ${w.address}`, ...CAT_WALLET_RULES] : [], { cat, wallet: w.address });
+  }
+
+  if (!w.ready) fail(`Agent Cat #${cat} has no wallet yet. Run "node cat.mjs wallet create" first.`);
+
+  if (action === "fund") {
+    const raw = positional[2];
+    if (!raw || !/^\d+(\.\d{1,6})?$/.test(raw)) fail("say how many test dollars, e.g. node cat.mjs wallet fund 5");
+    if (Number(raw) <= 0 || Number(raw) > CAT_WALLET_FUND_LIMIT) fail(`top up between 0 and ${CAT_WALLET_FUND_LIMIT} test dollars at a time: the cat's wallet is for its own small things.`);
+    const amount = parseUnits(raw, 6);
+    const b = await balances(who.address);
+    if (b.dollars < amount) fail(`this wallet has ${usd(b.dollars)}, less than ${usd(amount)}. Mint some first: node cat.mjs mint`);
+    const step = await transact(who, { to: DOLLAR, abi: dollarAbi, functionName: "transfer", args: [w.address, amount], says: `Send ${usd(amount)} to Agent Cat #${cat}'s wallet` });
+    return report([step], who, step.sent ? [`Agent Cat #${cat}'s wallet now holds ${usd(w.dollars + amount)}.`] : [], { cat, wallet: w.address });
+  }
+
+  // return: the cat's wallet sends test dollars back to its owner. Only the cat's owner can make it act.
+  const raw = positional[2];
+  if (!raw || !(raw === "all" || /^\d+(\.\d{1,6})?$/.test(raw))) fail("say how many test dollars, or all, e.g. node cat.mjs wallet return all");
+  const amount = raw === "all" ? w.dollars : parseUnits(raw, 6);
+  if (amount <= 0n) fail(`Agent Cat #${cat}'s wallet holds no test dollars to return.`);
+  if (amount > w.dollars) fail(`Agent Cat #${cat}'s wallet holds ${usd(w.dollars)}, less than ${usd(amount)}.`);
+  const transfer = encodeFunctionData({ abi: dollarAbi, functionName: "transfer", args: [who.address, amount] });
+  const step = await transact(who, { to: w.address, abi: accountAbi, functionName: "execute", args: [DOLLAR, 0n, transfer, 0], says: `Agent Cat #${cat}'s wallet sends ${usd(amount)} back to ${who.address}` });
+  return report([step], who, step.sent ? [`Done: the cat's own wallet acted, signed by you as its owner.`] : [], { cat, wallet: w.address });
+}
+
 // ---- market data: tokenized stocks across chains (a skill, so it runs as the wallet's cat) ----
 async function market() {
   await checkNetwork();
@@ -359,6 +454,10 @@ const HELP = `Catfooding on Avalanche Fuji
   node cat.mjs check [--cat=<n>]     which Agent Cat this wallet's skills run as (exit 3 if none)
   node cat.mjs market [--stock=SPCX] tokenized stocks across chains vs the real share price (needs a cat)
   node cat.mjs send <number> --to=<address>  send a cat to another wallet, e.g. your browser wallet
+  node cat.mjs wallet [--cat=<n>]    the cat's own wallet: its address, whether it's created, what it holds
+  node cat.mjs wallet create         create the cat's own wallet (one transaction)
+  node cat.mjs wallet fund <amount>  put test dollars in the cat's wallet (up to ${CAT_WALLET_FUND_LIMIT} at a time)
+  node cat.mjs wallet return <amount|all>  the cat's wallet sends test dollars back to you
 
   Transactions are a dry run unless you add --send.
   --from=<address>   prepare transactions for another wallet to sign (no local key used)
@@ -367,7 +466,7 @@ const HELP = `Catfooding on Avalanche Fuji
 
   Challenge: node hunt.mjs TSLA [--chain=xlayer|base|ethereum|robinhood]   spot the fake stock tokens, read-only`;
 
-const commands = { setup, status, mint, adopt, cat: catInfo, check, market, send };
+const commands = { setup, status, mint, adopt, cat: catInfo, check, market, send, wallet };
 if (!command || flags.has("--help") || !commands[command]) {
   console.log(HELP);
   process.exit(command && !commands[command] ? 1 : 0);

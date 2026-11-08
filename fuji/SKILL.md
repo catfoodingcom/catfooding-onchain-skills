@@ -21,6 +21,10 @@ All steps go through one script in this folder. Run it from here (`npm install` 
 | check which cat the skills run as | `node cat.mjs check` (or `--cat=<number>`) |
 | see tokenized stocks across chains | `node cat.mjs market` (or `--stock=SPCX`); needs a cat |
 | send a cat to their own wallet | `node cat.mjs send <number> --to=<address>` |
+| the cat's own wallet: address, created or not, what it holds | `node cat.mjs wallet` (read-only; works with `--owner`) |
+| create the cat's own wallet | `node cat.mjs wallet create` |
+| put test dollars in the cat's wallet | `node cat.mjs wallet fund <amount>` (up to 100 at a time) |
+| have the cat's wallet send test dollars back | `node cat.mjs wallet return <amount|all>` |
 | hunt for fake stock tokens (the challenge) | `node hunt.mjs TSLA` (any stock it lists; `--chain=xlayer`, `base`, `ethereum` or `robinhood`, default Avalanche); read-only |
 
 **The cat check.** Before any skill other than setup, mint, adopt and look-up, run `node cat.mjs check --json`. Continue only if it returns `ok: true`, and use its `cat` as the cat you're acting for. Exit code 3 means no Agent Cat (or not this wallet's cat): offer to adopt one, and do nothing else.
@@ -47,6 +51,15 @@ An adoption is two transactions: an approval of exactly the price, then the adop
 - **Someone else signs.** Add `--from=<address>`. Nothing is sent: `--json` returns each transaction (`to`, `data`, `chainId`) for their wallet to sign, e.g. a browser wallet on catfooding.com.
 - **The cat moves to the person's wallet.** After `send`, the agent's wallet no longer holds the cat. Read-only skills (`check`, `market`) can run for it with `--owner=<their address>`; nothing can be sent for that wallet from here. Give the person the cat's page link (every command that shows a cat prints it) so they can sign in there, and the waitlist link `send` prints: their wallet is out, so it's the easy moment to join.
 - **OKX Onchain OS wallets** don't support Fuji yet. See `../docs/connect-your-wallet.md`.
+
+## The cat's own wallet
+
+Each Agent Cat can have a wallet of its own: an ERC-6551 token-bound account, created through the standard registry with Tokenbound's verified account on Fuji. Its address is known before it's created.
+
+- **Whoever holds the cat controls its wallet.** If the cat changes hands, the wallet and everything in it go with it. Say so whenever the person puts something in it.
+- **It's for the cat's own small things, never the person's money.** `wallet fund` is capped at 100 test dollars at a time.
+- `wallet return` makes the cat's wallet act: it sends test dollars back to the owner, signed by the owner's key. That's the point to show the person: the cat has its own address, and only its owner can make it act.
+- Same steps as every transaction: dry run first, then `--send` on their yes. After the cat is sent to the person's browser wallet, use `--from=<their address>` to prepare `wallet create` for them to sign.
 
 ## Spot the fake (read-only)
 
