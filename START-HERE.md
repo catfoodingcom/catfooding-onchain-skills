@@ -26,7 +26,7 @@ This repository is public, so cloning needs no GitHub account.
 
    If your agent was opened in a different folder, it may ask permission to work in the new one or to use the network. That's your agent's own safety check, separate from approving a transaction.
 3. **Connect a wallet.** Ask your agent to "set up my Catfooding wallet on Fuji". It creates a test wallet and gives you its address. Other options are in [docs/connect-your-wallet.md](docs/connect-your-wallet.md).
-4. **Get test AVAX.** Paste the address into the [Builder Hub faucet](https://build.avax.network/console/primary-network/faucet), then tell your agent when it's done. It checks the balance.
+4. **Get test AVAX.** Paste the address into the [Builder Hub faucet](https://build.avax.network/console/primary-network/faucet), then tell your agent when it's done. The faucet needs a free Builder Hub account; [create one here](https://build.avax.network/academy/avalanche-l1/avalanche-fundamentals/04-creating-an-l1/01a-create-builder-account) before the event if you can. It checks the balance.
 5. **Adopt an Agent Cat.** Pick a coat: White, Gold, Calico, Black, Red, Pink or Violet. Ask "adopt me a Gold cat" (or your coat). A new wallet takes three transactions: mint 25 test dollars, approve exactly 25, adopt. Your agent shows you each one before it sends, and sends only when you say yes.
 6. **Read the market with your cat.** Ask "how are tokenized stocks priced across chains?" Your cat reads the same stock on X Layer, Robinhood Chain, Solana and Ethereum, and how far each is from the real share price.
 7. **Check on your cat.** Ask "how's my cat?" Your agent gives you the cat's own page, for example `jess.catfooding.com/cats/43113/3`. Anyone with the link can see it, no wallet needed.
