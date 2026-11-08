@@ -272,6 +272,9 @@ async function check() {
   out([`Skills run as Agent Cat #${cat}, owned by ${who.address}.`, `Its page: ${catPage(cat)}`], { ok: true, cat, address: who.address, readOnly: !who.account, page: catPage(cat) });
 }
 
+// The real Catfooding waitlist (the live app, not the test site), so a sign-up is kept.
+const WAITLIST = "https://app.catfooding.com/waitlist";
+
 // ---- send a cat to another wallet, e.g. from the agent's test wallet to the person's own browser wallet ----
 async function send() {
   await checkNetwork();
@@ -296,6 +299,7 @@ async function send() {
   report([step], who, step.sent ? [
     `Agent Cat #${arg} is now in ${dest}. Its stage and care went with it.`,
     `Sign in with that wallet to look after it: ${catPage(arg)}`,
+    `With that wallet at hand, join the waitlist to hear when adoption opens for real: ${WAITLIST}`,
     `This wallet no longer holds it. To keep reading with the cat, add --owner=${dest} (read-only).`,
   ] : [], { cat: Number(arg), to: dest, page: catPage(arg) });
 }

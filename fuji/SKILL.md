@@ -45,7 +45,7 @@ An adoption is two transactions: an approval of exactly the price, then the adop
 
 - **Default: a test wallet on this machine.** `setup` creates one in `~/.catfooding/fuji-test-key` (readable only by the person's user). It is for Fuji only. If gas is low, give the person the address and the faucet link the script prints, then wait for them to fund it.
 - **Someone else signs.** Add `--from=<address>`. Nothing is sent: `--json` returns each transaction (`to`, `data`, `chainId`) for their wallet to sign, e.g. a browser wallet on catfooding.com.
-- **The cat moves to the person's wallet.** After `send`, the agent's wallet no longer holds the cat. Read-only skills (`check`, `market`) can run for it with `--owner=<their address>`; nothing can be sent for that wallet from here. Give the person the cat's page link (every command that shows a cat prints it) so they can sign in there.
+- **The cat moves to the person's wallet.** After `send`, the agent's wallet no longer holds the cat. Read-only skills (`check`, `market`) can run for it with `--owner=<their address>`; nothing can be sent for that wallet from here. Give the person the cat's page link (every command that shows a cat prints it) so they can sign in there, and the waitlist link `send` prints: their wallet is out, so it's the easy moment to join.
 - **OKX Onchain OS wallets** don't support Fuji yet. See `../docs/connect-your-wallet.md`.
 
 ## Spot the fake (read-only)
